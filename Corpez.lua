@@ -44,12 +44,13 @@ local Advantages = Window:CreateTab(
 Advantages:CreateSection("Corpez Hax Advantages")
 
 --==================================================
--- TEAM CHECK UTILITY
+-- TEAM CHECK UTILITY (FFA FIXED)
 --==================================================
 
 local function isEnemy(player)
-	if not player.Team then return false end
-	if not LocalPlayer.Team then return false end
+	if not LocalPlayer.Team or not player.Team then
+		return true
+	end
 	return player.Team ~= LocalPlayer.Team
 end
 
@@ -83,7 +84,6 @@ local function addESP(player)
 	highlight.Name = "CorpezESP"
 	highlight.Adornee = character
 
-	-- RED kapag enemy, PURPLE kapag teammate
 	if isEnemy(player) then
 		highlight.FillColor = Color3.fromRGB(255, 0, 0)
 		highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
@@ -170,7 +170,6 @@ local function addWallHack(player)
 	label.TextSize = 14
 	label.Text = player.Name
 
-	-- RED kapag enemy, PURPLE kapag teammate
 	if isEnemy(player) then
 		label.TextColor3 = Color3.fromRGB(255, 80, 80)
 	else
@@ -214,54 +213,46 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 --==================================================
--- IMMORTAL
+-- IMMORTAL (AGGRESSIVE FIX)
 --==================================================
 
 local ImmortalEnabled = false
 local ImmortalConnection
+local ImmortalHealthConnection
 
 local function startImmortal()
-	local function applyImmortal()
-		local character = LocalPlayer.Character
-		if not character then return end
+	local character = LocalPlayer.Character
+	if not character then return end
 
-		local humanoid =
-			character:FindFirstChildOfClass("Humanoid")
-		if not humanoid then return end
+	local humanoid =
+		character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
 
-		humanoid.MaxHealth = math.huge
-		humanoid.Health = math.huge
+	humanoid.MaxHealth = math.huge
+	humanoid.Health = math.huge
 
-		-- Block all incoming damage
-		for _, part in ipairs(character:GetDescendants()) do
-			if part:IsA("BasePart") then
-				part.CanTouch = true
+	ImmortalConnection =
+		RunService.Heartbeat:Connect(function()
+			if not ImmortalEnabled then return end
+
+			local char = LocalPlayer.Character
+			if not char then return end
+
+			local hum =
+				char:FindFirstChildOfClass("Humanoid")
+			if not hum then return end
+
+			hum.MaxHealth = math.huge
+			hum.Health = math.huge
+		end)
+
+	ImmortalHealthConnection =
+		humanoid.HealthChanged:Connect(function(health)
+			if not ImmortalEnabled then return end
+			if health < math.huge then
+				humanoid.Health = math.huge
 			end
-		end
-	end
-
-	applyImmortal()
-
-	ImmortalConnection = RunService.Heartbeat:Connect(function()
-		if not ImmortalEnabled then
-			if ImmortalConnection then
-				ImmortalConnection:Disconnect()
-				ImmortalConnection = nil
-			end
-			return
-		end
-
-		local character = LocalPlayer.Character
-		if not character then return end
-
-		local humanoid =
-			character:FindFirstChildOfClass("Humanoid")
-		if not humanoid then return end
-
-		if humanoid.Health < humanoid.MaxHealth then
-			humanoid.Health = humanoid.MaxHealth
-		end
-	end)
+		end)
 end
 
 local function stopImmortal()
@@ -270,6 +261,11 @@ local function stopImmortal()
 	if ImmortalConnection then
 		ImmortalConnection:Disconnect()
 		ImmortalConnection = nil
+	end
+
+	if ImmortalHealthConnection then
+		ImmortalHealthConnection:Disconnect()
+		ImmortalHealthConnection = nil
 	end
 
 	local character = LocalPlayer.Character
@@ -298,6 +294,46 @@ Advantages:CreateToggle({
 })
 
 --==================================================
+-- NOCLIP / WALL PASS (FIXED)
+--==================================================
+
+local NoclipEnabled = false
+
+RunService.Stepped:Connect(function()
+	if not NoclipEnabled then return end
+
+	local character = LocalPlayer.Character
+	if not character then return end
+
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = false
+		end
+	end
+end)
+
+Advantages:CreateToggle({
+	Name = "Noclip / Wall Pass",
+	CurrentValue = false,
+
+	Callback = function(value)
+		NoclipEnabled = value
+
+		if not value then
+			local character = LocalPlayer.Character
+			if not character then return end
+
+			for _, part in
+				ipairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = true
+				end
+			end
+		end
+	end
+})
+
+--==================================================
 -- AIM ASSIST
 --==================================================
 
@@ -318,7 +354,6 @@ local function isTargetVisible(character, root)
 	params.IgnoreWater = true
 
 	local result = workspace:Raycast(origin, direction, params)
-
 	if result == nil then return true end
 	return result.Instance:IsDescendantOf(character)
 end
@@ -503,66 +538,6 @@ Advantages:CreateSlider({
 
 	Callback = function(value)
 		AutoTargetSmoothness = value
-	end
-})
-
---==================================================
--- NOCLIP / WALL PASS
---==================================================
-
-local NoclipEnabled = false
-local NoclipConnection
-
-local function startNoclip()
-	NoclipConnection = RunService.Stepped:Connect(function()
-		if not NoclipEnabled then
-			if NoclipConnection then
-				NoclipConnection:Disconnect()
-				NoclipConnection = nil
-			end
-			return
-		end
-
-		local character = LocalPlayer.Character
-		if not character then return end
-
-		for _, part in ipairs(character:GetDescendants()) do
-			if part:IsA("BasePart") and part.CanCollide then
-				part.CanCollide = false
-			end
-		end
-	end)
-end
-
-local function stopNoclip()
-	NoclipEnabled = false
-
-	if NoclipConnection then
-		NoclipConnection:Disconnect()
-		NoclipConnection = nil
-	end
-
-	local character = LocalPlayer.Character
-	if not character then return end
-
-	for _, part in ipairs(character:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.CanCollide = true
-		end
-	end
-end
-
-Advantages:CreateToggle({
-	Name = "Noclip / Wall Pass",
-	CurrentValue = false,
-
-	Callback = function(value)
-		NoclipEnabled = value
-		if value then
-			startNoclip()
-		else
-			stopNoclip()
-		end
 	end
 })
 
@@ -808,7 +783,8 @@ Universal:CreateButton({
 			targetCharacter:FindFirstChild("HumanoidRootPart")
 
 		if myRoot and targetRoot then
-			myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 4)
+			myRoot.CFrame =
+				targetRoot.CFrame * CFrame.new(0, 0, 4)
 		end
 	end
 })
@@ -826,7 +802,8 @@ Universal:CreateButton({
 
 		local character = target.Character
 		local root =
-			character and character:FindFirstChild("HumanoidRootPart")
+			character and
+			character:FindFirstChild("HumanoidRootPart")
 		if not root then return end
 
 		local attachment = Instance.new("Attachment")
@@ -871,7 +848,8 @@ Universal:CreateButton({
 			targetCharacter:FindFirstChild("HumanoidRootPart")
 
 		if myRoot and targetRoot then
-			targetRoot.CFrame = myRoot.CFrame * CFrame.new(0, 0, -4)
+			targetRoot.CFrame =
+				myRoot.CFrame * CFrame.new(0, 0, -4)
 		end
 	end
 })
@@ -1058,7 +1036,7 @@ Credits:CreateParagraph({
 LocalPlayer.CharacterAdded:Connect(function()
 	stopFly()
 	stopSpiral()
-	stopNoclip()
+	NoclipEnabled = false
 
 	task.wait(1)
 
@@ -1074,6 +1052,6 @@ end)
 
 Rayfield:Notify({
 	Title = "Corpez Hax",
-	Content = "Loaded — ESP | WallHack | Immortal | Noclip | Speed",
+	Content = "ESP | WallHack | Immortal | Noclip | Speed | Fly",
 	Duration = 5
 })
