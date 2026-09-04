@@ -1,5 +1,6 @@
 --==================================================
--- CORPEZ HAX
+-- CORPEZ HAX — FULL SCRIPT
+-- True Immortal | WallBang Aim | ESP | Fly | Speed
 --==================================================
 
 local Players = game:GetService("Players")
@@ -20,42 +21,29 @@ local Window = Rayfield:CreateWindow({
 	Name = "Corpez Hax",
 	LoadingTitle = "Corpez Hax",
 	LoadingSubtitle = "by CORPEZ",
-
-	ConfigurationSaving = {
-		Enabled = false
-	},
-
-	Discord = {
-		Enabled = false
-	},
-
+	ConfigurationSaving = { Enabled = false },
+	Discord = { Enabled = false },
 	KeySystem = false
 })
 
 --==================================================
--- ADVANTAGES
+-- ADVANTAGES TAB
 --==================================================
 
-local Advantages = Window:CreateTab(
-	"Advantages",
-	4483362458
-)
-
+local Advantages = Window:CreateTab("Advantages", 4483362458)
 Advantages:CreateSection("Corpez Hax Advantages")
 
 --==================================================
--- TEAM CHECK UTILITY (FFA FIXED)
+-- TEAM CHECK
 --==================================================
 
 local function isEnemy(player)
-	if not LocalPlayer.Team or not player.Team then
-		return true
-	end
+	if not LocalPlayer.Team or not player.Team then return true end
 	return player.Team ~= LocalPlayer.Team
 end
 
 --==================================================
--- ESP (RED = ENEMY, PURPLE = TEAMMATE)
+-- ESP
 --==================================================
 
 local ESPEnabled = false
@@ -63,22 +51,16 @@ local Highlights = {}
 
 local function clearESP()
 	for player, highlight in pairs(Highlights) do
-		if highlight then
-			highlight:Destroy()
-		end
+		if highlight then highlight:Destroy() end
 		Highlights[player] = nil
 	end
 end
 
 local function addESP(player)
 	if player == LocalPlayer then return end
-
 	local character = player.Character
 	if not character then return end
-
-	if Highlights[player] then
-		Highlights[player]:Destroy()
-	end
+	if Highlights[player] then Highlights[player]:Destroy() end
 
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "CorpezESP"
@@ -96,14 +78,12 @@ local function addESP(player)
 	highlight.OutlineTransparency = 0
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	highlight.Parent = character
-
 	Highlights[player] = highlight
 end
 
 local function updateESP()
 	clearESP()
 	if not ESPEnabled then return end
-
 	for _, player in ipairs(Players:GetPlayers()) do
 		addESP(player)
 	end
@@ -112,7 +92,6 @@ end
 Advantages:CreateToggle({
 	Name = "Purple/Red ESP",
 	CurrentValue = false,
-
 	Callback = function(value)
 		ESPEnabled = value
 		updateESP()
@@ -122,9 +101,7 @@ Advantages:CreateToggle({
 Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.5)
-		if ESPEnabled then
-			addESP(player)
-		end
+		if ESPEnabled then addESP(player) end
 	end)
 end)
 
@@ -144,10 +121,8 @@ end
 
 local function addWallHack(player)
 	if player == LocalPlayer then return end
-
 	local character = player.Character
 	if not character then return end
-
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
 
@@ -185,9 +160,7 @@ local function updateWallHack()
 		if billboard then billboard:Destroy() end
 		WallHackBillboards[player] = nil
 	end
-
 	if not WallHackEnabled then return end
-
 	for _, player in ipairs(Players:GetPlayers()) do
 		addWallHack(player)
 	end
@@ -196,7 +169,6 @@ end
 Advantages:CreateToggle({
 	Name = "Wall Hack",
 	CurrentValue = false,
-
 	Callback = function(value)
 		WallHackEnabled = value
 		updateWallHack()
@@ -206,105 +178,158 @@ Advantages:CreateToggle({
 Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.5)
-		if WallHackEnabled then
-			addWallHack(player)
-		end
+		if WallHackEnabled then addWallHack(player) end
 	end)
 end)
 
 --==================================================
--- IMMORTAL (AGGRESSIVE FIX)
+-- TRUE IMMORTAL v2
+-- Heartbeat + RenderStepped dual lock
+-- Anti-explosion, Anti-void, Anti-Died
 --==================================================
 
 local ImmortalEnabled = false
-local ImmortalConnection
-local ImmortalHealthConnection
+local ImmortalConnections = {}
 
-local function startImmortal()
-	local character = LocalPlayer.Character
-	if not character then return end
+local function disableLocalScripts(character)
+	for _, obj in ipairs(character:GetDescendants()) do
+		if obj:IsA("LocalScript") or obj:IsA("Script") then
+			obj.Disabled = true
+		end
+	end
+end
 
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
+local function sweepExplosives(character)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
 
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Explosion") then
+			local dist = (obj.Position - root.Position).Magnitude
+			if dist < 60 then
+				obj.BlastPressure = 0
+				obj.BlastRadius = 0
+				obj.DestroyJointRadiusPercent = 0
+			end
+		end
+	end
+end
+
+local function lockHealth(humanoid)
 	humanoid.MaxHealth = math.huge
 	humanoid.Health = math.huge
 
-	ImmortalConnection =
-		RunService.Heartbeat:Connect(function()
-			if not ImmortalEnabled then return end
+	local hc = humanoid.HealthChanged:Connect(function()
+		if ImmortalEnabled then
+			humanoid.MaxHealth = math.huge
+			humanoid.Health = math.huge
+		end
+	end)
+	table.insert(ImmortalConnections, hc)
 
-			local char = LocalPlayer.Character
-			if not char then return end
+	local dc = humanoid.Died:Connect(function()
+		if ImmortalEnabled then
+			humanoid.MaxHealth = math.huge
+			humanoid.Health = math.huge
+		end
+	end)
+	table.insert(ImmortalConnections, dc)
+end
 
-			local hum =
-				char:FindFirstChildOfClass("Humanoid")
-			if not hum then return end
+local function antiVoid(character)
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
 
-			hum.MaxHealth = math.huge
-			hum.Health = math.huge
-		end)
+	local av = RunService.Heartbeat:Connect(function()
+		if not ImmortalEnabled then return end
+		if not root.Parent then return end
+		if root.Position.Y < -100 then
+			root.CFrame = CFrame.new(
+				root.Position.X,
+				50,
+				root.Position.Z
+			)
+		end
+	end)
+	table.insert(ImmortalConnections, av)
+end
 
-	ImmortalHealthConnection =
-		humanoid.HealthChanged:Connect(function(health)
-			if not ImmortalEnabled then return end
-			if health < math.huge then
-				humanoid.Health = math.huge
-			end
-		end)
+local function startImmortal()
+	for _, c in ipairs(ImmortalConnections) do
+		if c then c:Disconnect() end
+	end
+	ImmortalConnections = {}
+
+	local character = LocalPlayer.Character
+	if not character then return end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	disableLocalScripts(character)
+	lockHealth(humanoid)
+	antiVoid(character)
+
+	-- Heartbeat lock
+	local hb = RunService.Heartbeat:Connect(function()
+		if not ImmortalEnabled then return end
+		local char = LocalPlayer.Character
+		if not char then return end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not hum then return end
+		if hum.MaxHealth ~= math.huge then hum.MaxHealth = math.huge end
+		if hum.Health < math.huge then hum.Health = math.huge end
+		sweepExplosives(char)
+	end)
+	table.insert(ImmortalConnections, hb)
+
+	-- RenderStepped lock (double coverage)
+	local rs = RunService.RenderStepped:Connect(function()
+		if not ImmortalEnabled then return end
+		local char = LocalPlayer.Character
+		if not char then return end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not hum then return end
+		hum.MaxHealth = math.huge
+		hum.Health = math.huge
+	end)
+	table.insert(ImmortalConnections, rs)
 end
 
 local function stopImmortal()
 	ImmortalEnabled = false
-
-	if ImmortalConnection then
-		ImmortalConnection:Disconnect()
-		ImmortalConnection = nil
+	for _, c in ipairs(ImmortalConnections) do
+		if c then c:Disconnect() end
 	end
-
-	if ImmortalHealthConnection then
-		ImmortalHealthConnection:Disconnect()
-		ImmortalHealthConnection = nil
-	end
+	ImmortalConnections = {}
 
 	local character = LocalPlayer.Character
 	if not character then return end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
-
 	humanoid.MaxHealth = 100
 	humanoid.Health = 100
 end
 
 Advantages:CreateToggle({
-	Name = "Immortal",
+	Name = "Immortal (TRUE)",
 	CurrentValue = false,
-
 	Callback = function(value)
 		ImmortalEnabled = value
-		if value then
-			startImmortal()
-		else
-			stopImmortal()
-		end
+		if value then startImmortal() else stopImmortal() end
 	end
 })
 
 --==================================================
--- NOCLIP / WALL PASS (FIXED)
+-- NOCLIP
 --==================================================
 
 local NoclipEnabled = false
 
 RunService.Stepped:Connect(function()
 	if not NoclipEnabled then return end
-
 	local character = LocalPlayer.Character
 	if not character then return end
-
 	for _, part in ipairs(character:GetDescendants()) do
 		if part:IsA("BasePart") then
 			part.CanCollide = false
@@ -315,16 +340,12 @@ end)
 Advantages:CreateToggle({
 	Name = "Noclip / Wall Pass",
 	CurrentValue = false,
-
 	Callback = function(value)
 		NoclipEnabled = value
-
 		if not value then
 			local character = LocalPlayer.Character
 			if not character then return end
-
-			for _, part in
-				ipairs(character:GetDescendants()) do
+			for _, part in ipairs(character:GetDescendants()) do
 				if part:IsA("BasePart") then
 					part.CanCollide = true
 				end
@@ -334,34 +355,16 @@ Advantages:CreateToggle({
 })
 
 --==================================================
--- AIM ASSIST
+-- AIM ASSIST — WALLBANG (NO VISIBILITY CHECK)
 --==================================================
 
 local AimEnabled = false
 local AimDistance = 500
 local AimSmoothness = 0.15
 
-local function isTargetVisible(character, root)
-	local camera = workspace.CurrentCamera
-	local origin = camera.CFrame.Position
-	local direction = root.Position - origin
-
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	params.FilterDescendantsInstances = {
-		LocalPlayer.Character
-	}
-	params.IgnoreWater = true
-
-	local result = workspace:Raycast(origin, direction, params)
-	if result == nil then return true end
-	return result.Instance:IsDescendantOf(character)
-end
-
 local function getClosestPlayer()
 	local camera = workspace.CurrentCamera
 	local mousePosition = UserInputService:GetMouseLocation()
-
 	local closest = nil
 	local closestDistance = AimDistance
 
@@ -369,10 +372,8 @@ local function getClosestPlayer()
 		if player ~= LocalPlayer and isEnemy(player) then
 			local character = player.Character
 			if character then
-				local humanoid =
-					character:FindFirstChildOfClass("Humanoid")
-				local root =
-					character:FindFirstChild("HumanoidRootPart")
+				local humanoid = character:FindFirstChildOfClass("Humanoid")
+				local root = character:FindFirstChild("HumanoidRootPart")
 
 				if humanoid and root and humanoid.Health > 0 then
 					local screenPosition, onScreen =
@@ -380,14 +381,10 @@ local function getClosestPlayer()
 
 					if onScreen then
 						local distance = (
-							Vector2.new(
-								screenPosition.X,
-								screenPosition.Y
-							) - mousePosition
+							Vector2.new(screenPosition.X, screenPosition.Y) - mousePosition
 						).Magnitude
 
-						if distance < closestDistance
-							and isTargetVisible(character, root) then
+						if distance < closestDistance then
 							closestDistance = distance
 							closest = player
 						end
@@ -402,31 +399,24 @@ end
 
 RunService.RenderStepped:Connect(function()
 	if not AimEnabled then return end
-
 	local target = getClosestPlayer()
 	if not target then return end
-
 	local character = target.Character
 	if not character then return end
-
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
-
-	if not isTargetVisible(character, root) then return end
 
 	local camera = workspace.CurrentCamera
 	local targetCFrame = CFrame.lookAt(
 		camera.CFrame.Position,
 		root.Position
 	)
-
 	camera.CFrame = camera.CFrame:Lerp(targetCFrame, AimSmoothness)
 end)
 
 Advantages:CreateToggle({
-	Name = "Aim Assist",
+	Name = "Aim Assist (WallBang)",
 	CurrentValue = false,
-
 	Callback = function(value)
 		AimEnabled = value
 	end
@@ -437,7 +427,6 @@ Advantages:CreateSlider({
 	Range = {0.05, 1},
 	Increment = 0.05,
 	CurrentValue = 0.15,
-
 	Callback = function(value)
 		AimSmoothness = value
 	end
@@ -449,14 +438,13 @@ Advantages:CreateSlider({
 	Increment = 50,
 	CurrentValue = 500,
 	Suffix = " px",
-
 	Callback = function(value)
 		AimDistance = value
 	end
 })
 
 --==================================================
--- AUTO TARGET
+-- AUTO TARGET — WALLBANG
 --==================================================
 
 local AutoTargetEnabled = false
@@ -465,7 +453,6 @@ local AutoTargetSmoothness = 0.2
 local function getClosestPlayerWorld()
 	local myCharacter = LocalPlayer.Character
 	if not myCharacter then return nil end
-
 	local myRoot = myCharacter:FindFirstChild("HumanoidRootPart")
 	if not myRoot then return nil end
 
@@ -476,14 +463,11 @@ local function getClosestPlayerWorld()
 		if player ~= LocalPlayer and isEnemy(player) then
 			local character = player.Character
 			if character then
-				local humanoid =
-					character:FindFirstChildOfClass("Humanoid")
-				local root =
-					character:FindFirstChild("HumanoidRootPart")
+				local humanoid = character:FindFirstChildOfClass("Humanoid")
+				local root = character:FindFirstChild("HumanoidRootPart")
 
 				if humanoid and root and humanoid.Health > 0 then
-					local dist =
-						(root.Position - myRoot.Position).Magnitude
+					local dist = (root.Position - myRoot.Position).Magnitude
 					if dist < closestDist then
 						closestDist = dist
 						closest = player
@@ -498,13 +482,10 @@ end
 
 RunService.RenderStepped:Connect(function()
 	if not AutoTargetEnabled then return end
-
 	local target = getClosestPlayerWorld()
 	if not target then return end
-
 	local character = target.Character
 	if not character then return end
-
 	local root = character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
 
@@ -513,17 +494,12 @@ RunService.RenderStepped:Connect(function()
 		camera.CFrame.Position,
 		root.Position
 	)
-
-	camera.CFrame = camera.CFrame:Lerp(
-		targetCFrame,
-		AutoTargetSmoothness
-	)
+	camera.CFrame = camera.CFrame:Lerp(targetCFrame, AutoTargetSmoothness)
 end)
 
 Advantages:CreateToggle({
-	Name = "Auto Target",
+	Name = "Auto Target (WallBang)",
 	CurrentValue = false,
-
 	Callback = function(value)
 		AutoTargetEnabled = value
 	end
@@ -535,7 +511,6 @@ Advantages:CreateSlider({
 	Increment = 0.05,
 	CurrentValue = 0.2,
 	Suffix = "x",
-
 	Callback = function(value)
 		AutoTargetSmoothness = value
 	end
@@ -552,22 +527,14 @@ local DefaultSpeed = 16
 local function applySpeed()
 	local character = LocalPlayer.Character
 	if not character then return end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
-
-	if SpeedEnabled then
-		humanoid.WalkSpeed = SpeedValue
-	else
-		humanoid.WalkSpeed = DefaultSpeed
-	end
+	humanoid.WalkSpeed = SpeedEnabled and SpeedValue or DefaultSpeed
 end
 
 Advantages:CreateToggle({
 	Name = "Speed Walk",
 	CurrentValue = false,
-
 	Callback = function(value)
 		SpeedEnabled = value
 		applySpeed()
@@ -580,12 +547,9 @@ Advantages:CreateSlider({
 	Increment = 8,
 	CurrentValue = 32,
 	Suffix = " speed",
-
 	Callback = function(value)
 		SpeedValue = value
-		if SpeedEnabled then
-			applySpeed()
-		end
+		if SpeedEnabled then applySpeed() end
 	end
 })
 
@@ -595,7 +559,6 @@ Advantages:CreateSlider({
 
 local Flying = false
 local FlySpeed = 60
-
 local FlyConnection
 local FlyVelocity
 local FlyOrientation
@@ -604,45 +567,21 @@ local FlyOrientationAttachment
 
 local function stopFly()
 	Flying = false
-
-	if FlyConnection then
-		FlyConnection:Disconnect()
-		FlyConnection = nil
-	end
-	if FlyVelocity then
-		FlyVelocity:Destroy()
-		FlyVelocity = nil
-	end
-	if FlyOrientation then
-		FlyOrientation:Destroy()
-		FlyOrientation = nil
-	end
-	if FlyVelocityAttachment then
-		FlyVelocityAttachment:Destroy()
-		FlyVelocityAttachment = nil
-	end
-	if FlyOrientationAttachment then
-		FlyOrientationAttachment:Destroy()
-		FlyOrientationAttachment = nil
-	end
-
+	if FlyConnection then FlyConnection:Disconnect(); FlyConnection = nil end
+	if FlyVelocity then FlyVelocity:Destroy(); FlyVelocity = nil end
+	if FlyOrientation then FlyOrientation:Destroy(); FlyOrientation = nil end
+	if FlyVelocityAttachment then FlyVelocityAttachment:Destroy(); FlyVelocityAttachment = nil end
+	if FlyOrientationAttachment then FlyOrientationAttachment:Destroy(); FlyOrientationAttachment = nil end
 	local character = LocalPlayer.Character
-	local humanoid =
-		character and character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		humanoid.AutoRotate = true
-	end
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then humanoid.AutoRotate = true end
 end
 
 local function startFly()
 	local character = LocalPlayer.Character
 	if not character then return end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-	local root =
-		character:FindFirstChild("HumanoidRootPart")
-
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
 	if not humanoid or not root then return end
 
 	stopFly()
@@ -664,43 +603,25 @@ local function startFly()
 
 	FlyOrientation = Instance.new("AlignOrientation")
 	FlyOrientation.Attachment0 = FlyOrientationAttachment
-	FlyOrientation.Mode =
-		Enum.OrientationAlignmentMode.OneAttachment
+	FlyOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
 	FlyOrientation.MaxTorque = math.huge
 	FlyOrientation.Responsiveness = 25
 	FlyOrientation.Parent = root
 
 	FlyConnection = RunService.RenderStepped:Connect(function()
-		if not Flying or not root.Parent then
-			stopFly()
-			return
-		end
+		if not Flying or not root.Parent then stopFly(); return end
 
 		local camera = workspace.CurrentCamera
 		local direction = Vector3.zero
 
-		if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-			direction += camera.CFrame.LookVector
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-			direction -= camera.CFrame.LookVector
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-			direction -= camera.CFrame.RightVector
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-			direction += camera.CFrame.RightVector
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-			direction += Vector3.new(0, 1, 0)
-		end
-		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
-			direction -= Vector3.new(0, 1, 0)
-		end
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction += camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction -= camera.CFrame.LookVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction -= camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction += camera.CFrame.RightVector end
+		if UserInputService:IsKeyDown(Enum.KeyCode.Space) then direction += Vector3.new(0, 1, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then direction -= Vector3.new(0, 1, 0) end
 
-		if direction.Magnitude > 0 then
-			direction = direction.Unit * FlySpeed
-		end
+		if direction.Magnitude > 0 then direction = direction.Unit * FlySpeed end
 
 		FlyVelocity.VectorVelocity = direction
 		FlyOrientation.CFrame = CFrame.lookAt(
@@ -713,13 +634,8 @@ end
 Advantages:CreateToggle({
 	Name = "Fly",
 	CurrentValue = false,
-
 	Callback = function(value)
-		if value then
-			startFly()
-		else
-			stopFly()
-		end
+		if value then startFly() else stopFly() end
 	end
 })
 
@@ -729,21 +645,16 @@ Advantages:CreateSlider({
 	Increment = 5,
 	CurrentValue = 60,
 	Suffix = " studs/s",
-
 	Callback = function(value)
 		FlySpeed = value
 	end
 })
 
 --==================================================
--- UNIVERSAL
+-- UNIVERSAL TAB
 --==================================================
 
-local Universal = Window:CreateTab(
-	"Universal",
-	4483362458
-)
-
+local Universal = Window:CreateTab("Universal", 4483362458)
 Universal:CreateSection("Universal Player Tools")
 
 local function getOtherPlayers()
@@ -762,48 +673,29 @@ local function getRandomPlayer()
 	return list[math.random(1, #list)]
 end
 
---==================================================
--- TELEPORT RANDOM
---==================================================
-
 Universal:CreateButton({
 	Name = "Teleport To Random",
-
 	Callback = function()
 		local target = getRandomPlayer()
 		if not target then return end
-
 		local myCharacter = LocalPlayer.Character
 		local targetCharacter = target.Character
 		if not myCharacter or not targetCharacter then return end
-
-		local myRoot =
-			myCharacter:FindFirstChild("HumanoidRootPart")
-		local targetRoot =
-			targetCharacter:FindFirstChild("HumanoidRootPart")
-
+		local myRoot = myCharacter:FindFirstChild("HumanoidRootPart")
+		local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
 		if myRoot and targetRoot then
-			myRoot.CFrame =
-				targetRoot.CFrame * CFrame.new(0, 0, 4)
+			myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 4)
 		end
 	end
 })
 
---==================================================
--- FLING RANDOM
---==================================================
-
 Universal:CreateButton({
 	Name = "Fling Random",
-
 	Callback = function()
 		local target = getRandomPlayer()
 		if not target then return end
-
 		local character = target.Character
-		local root =
-			character and
-			character:FindFirstChild("HumanoidRootPart")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
 		if not root then return end
 
 		local attachment = Instance.new("Attachment")
@@ -814,9 +706,7 @@ Universal:CreateButton({
 		velocity.RelativeTo = Enum.ActuatorRelativeTo.World
 		velocity.MaxForce = math.huge
 		velocity.VectorVelocity = Vector3.new(
-			math.random(-150, 150),
-			150,
-			math.random(-150, 150)
+			math.random(-150, 150), 150, math.random(-150, 150)
 		)
 		velocity.Parent = root
 
@@ -827,60 +717,36 @@ Universal:CreateButton({
 	end
 })
 
---==================================================
--- BRING RANDOM
---==================================================
-
 Universal:CreateButton({
 	Name = "Bring Random",
-
 	Callback = function()
 		local target = getRandomPlayer()
 		if not target then return end
-
 		local myCharacter = LocalPlayer.Character
 		local targetCharacter = target.Character
 		if not myCharacter or not targetCharacter then return end
-
-		local myRoot =
-			myCharacter:FindFirstChild("HumanoidRootPart")
-		local targetRoot =
-			targetCharacter:FindFirstChild("HumanoidRootPart")
-
+		local myRoot = myCharacter:FindFirstChild("HumanoidRootPart")
+		local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
 		if myRoot and targetRoot then
-			targetRoot.CFrame =
-				myRoot.CFrame * CFrame.new(0, 0, -4)
+			targetRoot.CFrame = myRoot.CFrame * CFrame.new(0, 0, -4)
 		end
 	end
 })
 
---==================================================
--- BRING ALL
---==================================================
-
 Universal:CreateButton({
 	Name = "Bring All",
-
 	Callback = function()
 		local myCharacter = LocalPlayer.Character
 		if not myCharacter then return end
-
-		local myRoot =
-			myCharacter:FindFirstChild("HumanoidRootPart")
+		local myRoot = myCharacter:FindFirstChild("HumanoidRootPart")
 		if not myRoot then return end
-
 		for _, player in ipairs(Players:GetPlayers()) do
 			if player ~= LocalPlayer then
 				local character = player.Character
-				local root =
-					character and
-					character:FindFirstChild("HumanoidRootPart")
-
+				local root = character and character:FindFirstChild("HumanoidRootPart")
 				if root then
 					root.CFrame = myRoot.CFrame * CFrame.new(
-						math.random(-5, 5),
-						0,
-						math.random(-5, 5)
+						math.random(-5, 5), 0, math.random(-5, 5)
 					)
 				end
 			end
@@ -895,9 +761,6 @@ Universal:CreateButton({
 local SpiralEnabled = false
 local SpiralConnection
 local SpiralAngle = 0
-local SpiralRadius = 8
-local SpiralHeight = 3
-local SpiralSpeed = 2
 
 local function stopSpiral()
 	SpiralEnabled = false
@@ -908,126 +771,52 @@ local function stopSpiral()
 end
 
 local function startSpiral()
-	stopSpiral()
-
-	local target = getRandomPlayer()
-	if not target then return end
+	local myCharacter = LocalPlayer.Character
+	if not myCharacter then return end
+	local myRoot = myCharacter:FindFirstChild("HumanoidRootPart")
+	if not myRoot then return end
 
 	SpiralEnabled = true
 	SpiralAngle = 0
 
-	SpiralConnection = RunService.RenderStepped:Connect(
-		function(deltaTime)
-			if not SpiralEnabled then return end
+	SpiralConnection = RunService.Heartbeat:Connect(function(dt)
+		if not SpiralEnabled then stopSpiral(); return end
+		SpiralAngle = SpiralAngle + dt * 3
 
-			local myCharacter = LocalPlayer.Character
-			local targetCharacter = target.Character
-
-			if not myCharacter or not targetCharacter then
-				stopSpiral()
-				return
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player ~= LocalPlayer then
+				local character = player.Character
+				local root = character and character:FindFirstChild("HumanoidRootPart")
+				if root then
+					local radius = 8
+					local offset = Vector3.new(
+						math.cos(SpiralAngle) * radius,
+						0,
+						math.sin(SpiralAngle) * radius
+					)
+					root.CFrame = CFrame.new(myRoot.Position + offset)
+				end
 			end
-
-			local myRoot =
-				myCharacter:FindFirstChild("HumanoidRootPart")
-			local targetRoot =
-				targetCharacter:FindFirstChild("HumanoidRootPart")
-
-			if not myRoot or not targetRoot then
-				stopSpiral()
-				return
-			end
-
-			SpiralAngle += deltaTime * SpiralSpeed
-
-			local height =
-				math.sin(SpiralAngle * 0.5) * SpiralHeight
-			local x = math.cos(SpiralAngle) * SpiralRadius
-			local z = math.sin(SpiralAngle) * SpiralRadius
-
-			local position =
-				targetRoot.Position + Vector3.new(x, height, z)
-
-			myRoot.CFrame =
-				CFrame.lookAt(position, targetRoot.Position)
 		end
-	)
+	end)
 end
 
 Universal:CreateToggle({
 	Name = "Player Spiral",
 	CurrentValue = false,
-
 	Callback = function(value)
-		if value then
-			startSpiral()
-		else
-			stopSpiral()
-		end
-	end
-})
-
-Universal:CreateSlider({
-	Name = "Spiral Radius",
-	Range = {3, 30},
-	Increment = 1,
-	CurrentValue = 8,
-	Suffix = " studs",
-
-	Callback = function(value)
-		SpiralRadius = value
-	end
-})
-
-Universal:CreateSlider({
-	Name = "Spiral Speed",
-	Range = {0.5, 10},
-	Increment = 0.5,
-	CurrentValue = 2,
-	Suffix = "x",
-
-	Callback = function(value)
-		SpiralSpeed = value
+		if value then startSpiral() else stopSpiral() end
 	end
 })
 
 --==================================================
--- KICK SELF
+-- CREDITS TAB
 --==================================================
 
-Universal:CreateButton({
-	Name = "Kick Self",
-
-	Callback = function()
-		LocalPlayer:Kick("Corpez Hax: kicked yourself")
-	end
-})
-
---==================================================
--- CREDITS
---==================================================
-
-local Credits = Window:CreateTab(
-	"Credits",
-	4483362458
-)
-
+local Credits = Window:CreateTab("Credits", 4483362458)
 Credits:CreateSection("Corpez Hax Credits")
-
-Credits:CreateParagraph({
-	Title = "CORPEZ",
-	Content = "CREATED CORPEZ HAX"
-})
-
-Credits:CreateParagraph({
-	Title = "STRIPESVR",
-	Content = "(I stole the name of his adb)"
-})
-
-Credits:CreateParagraph({
-	Title = "war2012boys",
-	Content = "he's my bro"
-})
+Credits:CreateLabel("Script by CORPEZ")
+Credits:CreateLabel("Rayfield UI by Sirius")
 
 --==================================================
 -- RESPAWN HANDLER
@@ -1042,8 +831,17 @@ LocalPlayer.CharacterAdded:Connect(function()
 
 	if ESPEnabled then updateESP() end
 	if WallHackEnabled then updateWallHack() end
-	if ImmortalEnabled then startImmortal() end
 	if SpeedEnabled then applySpeed() end
+
+	-- Reapply immortal on respawn
+	if ImmortalEnabled then
+		local character = LocalPlayer.Character
+		if not character then return end
+		local humanoid = character:WaitForChild("Humanoid", 5)
+		if not humanoid then return end
+		task.wait(0.2)
+		startImmortal()
+	end
 end)
 
 --==================================================
@@ -1052,6 +850,6 @@ end)
 
 Rayfield:Notify({
 	Title = "Corpez Hax",
-	Content = "ESP | WallHack | Immortal | Noclip | Speed | Fly",
+	Content = "ESP | WallHack | TRUE Immortal | Noclip | WallBang Aim",
 	Duration = 5
 })
