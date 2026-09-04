@@ -44,7 +44,17 @@ local Advantages = Window:CreateTab(
 Advantages:CreateSection("Corpez Hax Advantages")
 
 --==================================================
--- PURPLE ESP
+-- TEAM CHECK UTILITY
+--==================================================
+
+local function isEnemy(player)
+	if not player.Team then return false end
+	if not LocalPlayer.Team then return false end
+	return player.Team ~= LocalPlayer.Team
+end
+
+--==================================================
+-- ESP (RED = ENEMY, PURPLE = TEAMMATE)
 --==================================================
 
 local ESPEnabled = false
@@ -60,14 +70,10 @@ local function clearESP()
 end
 
 local function addESP(player)
-	if player == LocalPlayer then
-		return
-	end
+	if player == LocalPlayer then return end
 
 	local character = player.Character
-	if not character then
-		return
-	end
+	if not character then return end
 
 	if Highlights[player] then
 		Highlights[player]:Destroy()
@@ -76,8 +82,16 @@ local function addESP(player)
 	local highlight = Instance.new("Highlight")
 	highlight.Name = "CorpezESP"
 	highlight.Adornee = character
-	highlight.FillColor = Color3.fromRGB(170, 0, 255)
-	highlight.OutlineColor = Color3.fromRGB(255, 150, 255)
+
+	-- RED kapag enemy, PURPLE kapag teammate
+	if isEnemy(player) then
+		highlight.FillColor = Color3.fromRGB(255, 0, 0)
+		highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+	else
+		highlight.FillColor = Color3.fromRGB(170, 0, 255)
+		highlight.OutlineColor = Color3.fromRGB(255, 150, 255)
+	end
+
 	highlight.FillTransparency = 0.45
 	highlight.OutlineTransparency = 0
 	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -88,10 +102,7 @@ end
 
 local function updateESP()
 	clearESP()
-
-	if not ESPEnabled then
-		return
-	end
+	if not ESPEnabled then return end
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		addESP(player)
@@ -99,7 +110,7 @@ local function updateESP()
 end
 
 Advantages:CreateToggle({
-	Name = "Purple ESP",
+	Name = "Purple/Red ESP",
 	CurrentValue = false,
 
 	Callback = function(value)
@@ -111,7 +122,6 @@ Advantages:CreateToggle({
 Players.PlayerAdded:Connect(function(player)
 	player.CharacterAdded:Connect(function()
 		task.wait(0.5)
-
 		if ESPEnabled then
 			addESP(player)
 		end
@@ -119,7 +129,7 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 --==================================================
--- WALL HACK
+-- WALL HACK (nametags)
 --==================================================
 
 local WallHackEnabled = false
@@ -154,22 +164,26 @@ local function addWallHack(player)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(255, 80, 255)
 	label.TextStrokeTransparency = 0
 	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = 14
 	label.Text = player.Name
-	label.Parent = billboard
 
+	-- RED kapag enemy, PURPLE kapag teammate
+	if isEnemy(player) then
+		label.TextColor3 = Color3.fromRGB(255, 80, 80)
+	else
+		label.TextColor3 = Color3.fromRGB(255, 80, 255)
+	end
+
+	label.Parent = billboard
 	WallHackBillboards[player] = billboard
 end
 
 local function updateWallHack()
 	for player, billboard in pairs(WallHackBillboards) do
-		if billboard then
-			billboard:Destroy()
-		end
+		if billboard then billboard:Destroy() end
 		WallHackBillboards[player] = nil
 	end
 
@@ -200,14 +214,88 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 --==================================================
--- TEAM CHECK UTILITY
+-- IMMORTAL
 --==================================================
 
-local function isEnemy(player)
-	if not player.Team then return false end
-	if not LocalPlayer.Team then return false end
-	return player.Team ~= LocalPlayer.Team
+local ImmortalEnabled = false
+local ImmortalConnection
+
+local function startImmortal()
+	local function applyImmortal()
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		local humanoid =
+			character:FindFirstChildOfClass("Humanoid")
+		if not humanoid then return end
+
+		humanoid.MaxHealth = math.huge
+		humanoid.Health = math.huge
+
+		-- Block all incoming damage
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.CanTouch = true
+			end
+		end
+	end
+
+	applyImmortal()
+
+	ImmortalConnection = RunService.Heartbeat:Connect(function()
+		if not ImmortalEnabled then
+			if ImmortalConnection then
+				ImmortalConnection:Disconnect()
+				ImmortalConnection = nil
+			end
+			return
+		end
+
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		local humanoid =
+			character:FindFirstChildOfClass("Humanoid")
+		if not humanoid then return end
+
+		if humanoid.Health < humanoid.MaxHealth then
+			humanoid.Health = humanoid.MaxHealth
+		end
+	end)
 end
+
+local function stopImmortal()
+	ImmortalEnabled = false
+
+	if ImmortalConnection then
+		ImmortalConnection:Disconnect()
+		ImmortalConnection = nil
+	end
+
+	local character = LocalPlayer.Character
+	if not character then return end
+
+	local humanoid =
+		character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	humanoid.MaxHealth = 100
+	humanoid.Health = 100
+end
+
+Advantages:CreateToggle({
+	Name = "Immortal",
+	CurrentValue = false,
+
+	Callback = function(value)
+		ImmortalEnabled = value
+		if value then
+			startImmortal()
+		else
+			stopImmortal()
+		end
+	end
+})
 
 --==================================================
 -- AIM ASSIST
@@ -229,30 +317,21 @@ local function isTargetVisible(character, root)
 	}
 	params.IgnoreWater = true
 
-	local result = workspace:Raycast(
-		origin,
-		direction,
-		params
-	)
+	local result = workspace:Raycast(origin, direction, params)
 
-	if result == nil then
-		return true
-	end
-
+	if result == nil then return true end
 	return result.Instance:IsDescendantOf(character)
 end
 
 local function getClosestPlayer()
 	local camera = workspace.CurrentCamera
-	local mousePosition =
-		UserInputService:GetMouseLocation()
+	local mousePosition = UserInputService:GetMouseLocation()
 
 	local closest = nil
 	local closestDistance = AimDistance
 
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer and isEnemy(player) then
-
 			local character = player.Character
 			if character then
 				local humanoid =
@@ -287,9 +366,7 @@ local function getClosestPlayer()
 end
 
 RunService.RenderStepped:Connect(function()
-	if not AimEnabled then
-		return
-	end
+	if not AimEnabled then return end
 
 	local target = getClosestPlayer()
 	if not target then return end
@@ -303,16 +380,12 @@ RunService.RenderStepped:Connect(function()
 	if not isTargetVisible(character, root) then return end
 
 	local camera = workspace.CurrentCamera
-
 	local targetCFrame = CFrame.lookAt(
 		camera.CFrame.Position,
 		root.Position
 	)
 
-	camera.CFrame = camera.CFrame:Lerp(
-		targetCFrame,
-		AimSmoothness
-	)
+	camera.CFrame = camera.CFrame:Lerp(targetCFrame, AimSmoothness)
 end)
 
 Advantages:CreateToggle({
@@ -401,7 +474,6 @@ RunService.RenderStepped:Connect(function()
 	if not root then return end
 
 	local camera = workspace.CurrentCamera
-
 	local targetCFrame = CFrame.lookAt(
 		camera.CFrame.Position,
 		root.Position
@@ -435,6 +507,114 @@ Advantages:CreateSlider({
 })
 
 --==================================================
+-- NOCLIP / WALL PASS
+--==================================================
+
+local NoclipEnabled = false
+local NoclipConnection
+
+local function startNoclip()
+	NoclipConnection = RunService.Stepped:Connect(function()
+		if not NoclipEnabled then
+			if NoclipConnection then
+				NoclipConnection:Disconnect()
+				NoclipConnection = nil
+			end
+			return
+		end
+
+		local character = LocalPlayer.Character
+		if not character then return end
+
+		for _, part in ipairs(character:GetDescendants()) do
+			if part:IsA("BasePart") and part.CanCollide then
+				part.CanCollide = false
+			end
+		end
+	end)
+end
+
+local function stopNoclip()
+	NoclipEnabled = false
+
+	if NoclipConnection then
+		NoclipConnection:Disconnect()
+		NoclipConnection = nil
+	end
+
+	local character = LocalPlayer.Character
+	if not character then return end
+
+	for _, part in ipairs(character:GetDescendants()) do
+		if part:IsA("BasePart") then
+			part.CanCollide = true
+		end
+	end
+end
+
+Advantages:CreateToggle({
+	Name = "Noclip / Wall Pass",
+	CurrentValue = false,
+
+	Callback = function(value)
+		NoclipEnabled = value
+		if value then
+			startNoclip()
+		else
+			stopNoclip()
+		end
+	end
+})
+
+--==================================================
+-- SPEED WALK
+--==================================================
+
+local SpeedEnabled = false
+local SpeedValue = 32
+local DefaultSpeed = 16
+
+local function applySpeed()
+	local character = LocalPlayer.Character
+	if not character then return end
+
+	local humanoid =
+		character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	if SpeedEnabled then
+		humanoid.WalkSpeed = SpeedValue
+	else
+		humanoid.WalkSpeed = DefaultSpeed
+	end
+end
+
+Advantages:CreateToggle({
+	Name = "Speed Walk",
+	CurrentValue = false,
+
+	Callback = function(value)
+		SpeedEnabled = value
+		applySpeed()
+	end
+})
+
+Advantages:CreateSlider({
+	Name = "Walk Speed",
+	Range = {16, 300},
+	Increment = 8,
+	CurrentValue = 32,
+	Suffix = " speed",
+
+	Callback = function(value)
+		SpeedValue = value
+		if SpeedEnabled then
+			applySpeed()
+		end
+	end
+})
+
+--==================================================
 -- FLY
 --==================================================
 
@@ -454,33 +634,26 @@ local function stopFly()
 		FlyConnection:Disconnect()
 		FlyConnection = nil
 	end
-
 	if FlyVelocity then
 		FlyVelocity:Destroy()
 		FlyVelocity = nil
 	end
-
 	if FlyOrientation then
 		FlyOrientation:Destroy()
 		FlyOrientation = nil
 	end
-
 	if FlyVelocityAttachment then
 		FlyVelocityAttachment:Destroy()
 		FlyVelocityAttachment = nil
 	end
-
 	if FlyOrientationAttachment then
 		FlyOrientationAttachment:Destroy()
 		FlyOrientationAttachment = nil
 	end
 
 	local character = LocalPlayer.Character
-
 	local humanoid =
-		character
-		and character:FindFirstChildOfClass("Humanoid")
-
+		character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
 		humanoid.AutoRotate = true
 	end
@@ -498,7 +671,6 @@ local function startFly()
 	if not humanoid or not root then return end
 
 	stopFly()
-
 	Flying = true
 	humanoid.AutoRotate = false
 
@@ -556,7 +728,6 @@ local function startFly()
 		end
 
 		FlyVelocity.VectorVelocity = direction
-
 		FlyOrientation.CFrame = CFrame.lookAt(
 			root.Position,
 			root.Position + camera.CFrame.LookVector
@@ -602,23 +773,17 @@ Universal:CreateSection("Universal Player Tools")
 
 local function getOtherPlayers()
 	local list = {}
-
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player ~= LocalPlayer then
 			table.insert(list, player)
 		end
 	end
-
 	return list
 end
 
 local function getRandomPlayer()
 	local list = getOtherPlayers()
-
-	if #list == 0 then
-		return nil
-	end
-
+	if #list == 0 then return nil end
 	return list[math.random(1, #list)]
 end
 
@@ -635,7 +800,6 @@ Universal:CreateButton({
 
 		local myCharacter = LocalPlayer.Character
 		local targetCharacter = target.Character
-
 		if not myCharacter or not targetCharacter then return end
 
 		local myRoot =
@@ -663,7 +827,6 @@ Universal:CreateButton({
 		local character = target.Character
 		local root =
 			character and character:FindFirstChild("HumanoidRootPart")
-
 		if not root then return end
 
 		local attachment = Instance.new("Attachment")
@@ -700,7 +863,6 @@ Universal:CreateButton({
 
 		local myCharacter = LocalPlayer.Character
 		local targetCharacter = target.Character
-
 		if not myCharacter or not targetCharacter then return end
 
 		local myRoot =
@@ -733,7 +895,8 @@ Universal:CreateButton({
 			if player ~= LocalPlayer then
 				local character = player.Character
 				local root =
-					character and character:FindFirstChild("HumanoidRootPart")
+					character and
+					character:FindFirstChild("HumanoidRootPart")
 
 				if root then
 					root.CFrame = myRoot.CFrame * CFrame.new(
@@ -760,7 +923,6 @@ local SpiralSpeed = 2
 
 local function stopSpiral()
 	SpiralEnabled = false
-
 	if SpiralConnection then
 		SpiralConnection:Disconnect()
 		SpiralConnection = nil
@@ -800,13 +962,16 @@ local function startSpiral()
 
 			SpiralAngle += deltaTime * SpiralSpeed
 
-			local height = math.sin(SpiralAngle * 0.5) * SpiralHeight
+			local height =
+				math.sin(SpiralAngle * 0.5) * SpiralHeight
 			local x = math.cos(SpiralAngle) * SpiralRadius
 			local z = math.sin(SpiralAngle) * SpiralRadius
 
-			local position = targetRoot.Position + Vector3.new(x, height, z)
+			local position =
+				targetRoot.Position + Vector3.new(x, height, z)
 
-			myRoot.CFrame = CFrame.lookAt(position, targetRoot.Position)
+			myRoot.CFrame =
+				CFrame.lookAt(position, targetRoot.Position)
 		end
 	)
 end
@@ -893,16 +1058,14 @@ Credits:CreateParagraph({
 LocalPlayer.CharacterAdded:Connect(function()
 	stopFly()
 	stopSpiral()
+	stopNoclip()
 
 	task.wait(1)
 
-	if ESPEnabled then
-		updateESP()
-	end
-
-	if WallHackEnabled then
-		updateWallHack()
-	end
+	if ESPEnabled then updateESP() end
+	if WallHackEnabled then updateWallHack() end
+	if ImmortalEnabled then startImmortal() end
+	if SpeedEnabled then applySpeed() end
 end)
 
 --==================================================
@@ -911,6 +1074,6 @@ end)
 
 Rayfield:Notify({
 	Title = "Corpez Hax",
-	Content = "Advantages Universal Credits loaded",
+	Content = "Loaded — ESP | WallHack | Immortal | Noclip | Speed",
 	Duration = 5
 })
